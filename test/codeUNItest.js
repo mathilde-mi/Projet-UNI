@@ -2,10 +2,6 @@ const { expect } = require("chai");
 const { ethers } = require('hardhat');
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 
-//const Helper = require('./shared');
-
-//Tests pris de la documentation de Hardhat 
-
 describe("Uni", function () {
   async function deployUniFixture() {
      const [owner, addr1, addr2] = await ethers.getSigners();
@@ -60,9 +56,6 @@ describe("Uni", function () {
   //   expect(await hardhatUni.balanceOf(owner.address)).to.equal(initialOwnerBalance);
   // });
 });
-
-
-//Tests demandés à ChatGPT pour la fonction constructor
 
 describe("Uni", function () {
   let owner, minter, newMinter, recipient, spender;
@@ -142,13 +135,13 @@ describe("Uni", function () {
     //   expect(finalRecipientBalance).to.equal(initialRecipientBalance.add(amountToMint));
     // });
 
-    it("should not allow a non-minter to mint new tokens", async function () {
-      const amountToMint = ethers.utils.parseEther("100");
+  it("should not allow a non-minter to mint new tokens", async function () {
+    const amountToMint = ethers.utils.parseEther("100");
 
-      await expect(
-        uni.connect(recipient).mint(recipient.address, amountToMint)
-      ).to.be.revertedWith("Uni::mint: only the minter can mint");
-    });
+    await expect(
+      uni.connect(recipient).mint(recipient.address, amountToMint)
+    ).to.be.revertedWith("Uni::mint: only the minter can mint");
+  });
 
     // it("should not allow minting before the mintingAllowedAfter time", async function () {
     //   const amountToMint = ethers.utils.parseEther("100");
@@ -181,16 +174,16 @@ describe("Uni", function () {
 
 // test fonction allowance
 
-    it("returns the correct allowance amount", async function() {
+  it("returns the correct allowance amount", async function() {
 
-      // Approbation de la dépense
-      const amountToApprove = ethers.utils.parseUnits("100", "ether");
-      await uni.approve(spender.address, amountToApprove);
-  
-      // Vérification de l'approbation
-      const allowanceAmount = await uni.allowance(owner.address, spender.address);
-      expect(allowanceAmount).to.equal(allowanceAmount, amountToApprove, "Allowance amount is not correct");
-    });
+    // Approbation de la dépense
+    const amountToApprove = ethers.utils.parseUnits("100", "ether");
+    await uni.approve(spender.address, amountToApprove);
+
+    // Vérification de l'approbation
+    const allowanceAmount = await uni.allowance(owner.address, spender.address);
+    expect(allowanceAmount).to.equal(allowanceAmount, amountToApprove, "Allowance amount is not correct");
+  });
 
 //test fonction approve
 
