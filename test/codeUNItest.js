@@ -62,12 +62,13 @@ describe("Uni", function () {
 
 //Tests demandés à ChatGPT pour la fonction constructor
 
-describe("Uni Token", function () {
+describe("Uni", function () {
   let uniToken;
   let owner, minter;
 
   beforeEach(async function () {
     [owner, minter] = await ethers.getSigners();
+    // [addressZero] = await ethers.getSigner(0);
     const currentTime = (await ethers.provider.getBlock("latest")).timestamp;
     const UniToken = await ethers.getContractFactory("Uni");
     uniToken = await UniToken.connect(owner).deploy(owner.address, minter.address, currentTime + 10000);
@@ -97,7 +98,7 @@ describe("Uni Token", function () {
   // });
 
   // it("should emit MinterChanged event when minter is set", async function () {
-  //   await expect(uniToken.deployTransaction).to.emit(uniToken, "MinterChanged").withArgs(address(0), minter.address);
+  //   await expect(uniToken.deployTransaction).to.emit(uniToken, "MinterChanged").withArgs(addressZero, minter.address);
   // });
 
   it("should throw error if mintingAllowedAfter is in the past", async function () {
@@ -107,4 +108,130 @@ describe("Uni Token", function () {
       UniToken.connect(owner).deploy(owner.address, minter.address, currentTime - 10000)
     ).to.be.revertedWith("Uni::constructor: minting can only begin after deployment");
   });
+});
+
+// test fonction setMinter
+
+describe("Uni", function () {
+  let Uni;
+  let uni;
+  let owner;
+  let minter;
+  let newMinter;
+
+  beforeEach(async function () {
+    Uni = await ethers.getContractFactory("Uni");
+    [owner, minter, newMinter] = await ethers.getSigners();
+    //uni = await Uni.connect(owner).deploy(minter.address);
+    const mintingAllowedAfter_ = Date.now() * 24;
+    uni = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
+  });
+  it("should allow the minter to change the minter address", async function () {
+    await uni.connect(minter).setMinter(newMinter.address);
+    expect(await uni.minter()).to.equal(newMinter.address);
+  });
+  it("should not allow a non-minter to change the minter address", async function () {
+    await expect(
+      uni.connect(owner).setMinter(newMinter.address)
+    ).to.be.revertedWith("Uni::setMinter: only the minter can change the minter address");
+  });
+});
+
+// test fonction mint
+
+describe("Uni contract", function () {
+  let Uni;
+  let uni;
+  let owner;
+  let minter;
+  let recipient;
+
+  beforeEach(async function () {
+    Uni = await ethers.getContractFactory("Uni");
+    [owner, minter, recipient] = await ethers.getSigners();
+    //uni = await Uni.connect(owner).deploy(minter.address);
+    const mintingAllowedAfter_ = Date.now() * 124;
+    uni = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
+  });
+
+  describe("mint", function () {
+    // it("should allow the minter to mint new tokens", async function () {
+    //   const amountToMint = ethers.utils.parseEther("100");
+    //   const initialTotalSupply = await uni.totalSupply();
+    //   const initialRecipientBalance = await uni.balanceOf(recipient.address);
+
+    //   await uni.connect(minter).mint(recipient.address, amountToMint);
+
+    //   const finalTotalSupply = await uni.totalSupply();
+    //   const finalRecipientBalance = await uni.balanceOf(recipient.address);
+
+    //   expect(finalTotalSupply).to.equal(initialTotalSupply.add(amountToMint));
+    //   expect(finalRecipientBalance).to.equal(initialRecipientBalance.add(amountToMint));
+    // });
+
+    it("should not allow a non-minter to mint new tokens", async function () {
+      const amountToMint = ethers.utils.parseEther("100");
+
+      await expect(
+        uni.connect(recipient).mint(recipient.address, amountToMint)
+      ).to.be.revertedWith("Uni::mint: only the minter can mint");
+    });
+
+    // it("should not allow minting before the mintingAllowedAfter time", async function () {
+    //   const amountToMint = ethers.utils.parseEther("100");
+    //   const futureTime = (await ethers.provider.getBlock("latest")).timestamp + 60;
+
+    //   await uni.setMintingAllowedAfter(futureTime);
+
+    //   await expect(
+    //     uni.connect(minter).mint(recipient.address, amountToMint)
+    //   ).to.be.revertedWith("Uni::mint: minting not allowed yet");
+    // });
+
+    // it("should not allow minting to the zero address", async function () {
+    //   const amountToMint = ethers.utils.parseEther("100");
+
+    //   await expect(
+    //     uni.connect(minter).mint("0x0000000000000000000000000000000000000000", amountToMint)
+    //   ).to.be.revertedWith("Uni::mint: cannot transfer to the zero address");
+    // });
+
+    // it("should not exceed the mint cap", async function () {
+    //   const amountToMint = ethers.utils.parseEther("100");
+    //   const mintCap = await uni.mintCap();
+    //   const totalSupply = await uni.totalSupply();
+
+    //   await expect(
+    //     uni.connect(minter).mint(recipient.address, mintCap.sub(totalSupply).add(amountToMint))
+    //   ).to.be.revertedWith("Uni::mint: exceeded mint cap");
+    // });
+  });
+
+
+// test fonction allowance
+
+  describe("allowance", function() {
+    it("returns the correct allowance amount", async function() {
+      const [owner, spender] = await ethers.getSigners();
+  
+      // Création d'une instance de contrat
+      const Uni = await ethers.getContractFactory("Uni");
+      const mintingAllowedAfter_ = Date.now() * 124;
+      const tokenInstance = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
+      await tokenInstance.deployed();
+
+      // Approbation de la dépense
+      const amountToApprove = ethers.utils.parseUnits("100", "ether");
+      await tokenInstance.approve(spender.address, amountToApprove);
+  
+      // Vérification de l'approbation
+      const allowanceAmount = await tokenInstance.allowance(owner.address, spender.address);
+      expect(allowanceAmount).to.equal(allowanceAmount, amountToApprove, "Allowance amount is not correct");
+    });
+  });
+
+
+
+
+  
 });
