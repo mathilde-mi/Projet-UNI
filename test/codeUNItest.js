@@ -2,6 +2,8 @@ const { expect } = require("chai");
 const { ethers } = require('hardhat');
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 
+//const Helper = require('./shared');
+
 //Tests pris de la documentation de Hardhat 
 
 describe("Uni", function () {
@@ -63,16 +65,18 @@ describe("Uni", function () {
 //Tests demandés à ChatGPT pour la fonction constructor
 
 describe("Uni", function () {
-  let uniToken;
-  let owner, minter;
+  let owner, minter, newMinter, recipient, spender;
+  let Uni;
+  let uni;
 
   beforeEach(async function () {
-    [owner, minter] = await ethers.getSigners();
-    // [addressZero] = await ethers.getSigner(0);
+    [owner, minter, newMinter, recipient, spender] = await ethers.getSigners();
     const currentTime = (await ethers.provider.getBlock("latest")).timestamp;
-    const UniToken = await ethers.getContractFactory("Uni");
-    uniToken = await UniToken.connect(owner).deploy(owner.address, minter.address, currentTime + 10000);
-    await uniToken.deployed();
+    const Uni = await ethers.getContractFactory("Uni");
+    const mintingAllowedAfter_ = Date.now() * 24;
+    uni = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
+    // uniToken = await UniToken.connect(owner).deploy(owner.address, minter.address, currentTime + 10000);
+    await uni.deployed();
   });
 
   // it("should set the minter and mintingAllowedAfter correctly", async function () {
@@ -86,11 +90,11 @@ describe("Uni", function () {
   // });
 
   it("Should have a total supply of 1 billion tokens", async () => {
-    expect(await uniToken.totalSupply()).to.equal(ethers.utils.parseUnits("1000000000", "ether"));
+    expect(await uni.totalSupply()).to.equal(ethers.utils.parseUnits("1000000000", "ether"));
   });
 
   it("Should set the initial balance of the deployer", async () => {
-    expect(await uniToken.balanceOf(owner.address)).to.equal(ethers.utils.parseUnits("1000000000", "ether"));
+    expect(await uni.balanceOf(owner.address)).to.equal(ethers.utils.parseUnits("1000000000", "ether"));
   });
 
   // it("should emit Transfer event when initial account is set", async function () {
@@ -108,53 +112,22 @@ describe("Uni", function () {
       UniToken.connect(owner).deploy(owner.address, minter.address, currentTime - 10000)
     ).to.be.revertedWith("Uni::constructor: minting can only begin after deployment");
   });
-});
 
 // test fonction setMinter
 
-describe("Uni", function () {
-  let Uni;
-  let uni;
-  let owner;
-  let minter;
-  let newMinter;
-
-  beforeEach(async function () {
-    Uni = await ethers.getContractFactory("Uni");
-    [owner, minter, newMinter] = await ethers.getSigners();
-    //uni = await Uni.connect(owner).deploy(minter.address);
-    const mintingAllowedAfter_ = Date.now() * 24;
-    uni = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
-  });
   it("should allow the minter to change the minter address", async function () {
     await uni.connect(minter).setMinter(newMinter.address);
     expect(await uni.minter()).to.equal(newMinter.address);
   });
+
   it("should not allow a non-minter to change the minter address", async function () {
     await expect(
       uni.connect(owner).setMinter(newMinter.address)
     ).to.be.revertedWith("Uni::setMinter: only the minter can change the minter address");
   });
-});
 
 // test fonction mint
 
-describe("Uni contract", function () {
-  let Uni;
-  let uni;
-  let owner;
-  let minter;
-  let recipient;
-
-  beforeEach(async function () {
-    Uni = await ethers.getContractFactory("Uni");
-    [owner, minter, recipient] = await ethers.getSigners();
-    //uni = await Uni.connect(owner).deploy(minter.address);
-    const mintingAllowedAfter_ = Date.now() * 124;
-    uni = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
-  });
-
-  describe("mint", function () {
     // it("should allow the minter to mint new tokens", async function () {
     //   const amountToMint = ethers.utils.parseEther("100");
     //   const initialTotalSupply = await uni.totalSupply();
@@ -205,77 +178,81 @@ describe("Uni contract", function () {
     //     uni.connect(minter).mint(recipient.address, mintCap.sub(totalSupply).add(amountToMint))
     //   ).to.be.revertedWith("Uni::mint: exceeded mint cap");
     // });
-  });
-
 
 // test fonction allowance
 
-  describe("allowance", function() {
     it("returns the correct allowance amount", async function() {
-      const [owner, spender] = await ethers.getSigners();
-  
-      // Création d'une instance de contrat
-      const Uni = await ethers.getContractFactory("Uni");
-      const mintingAllowedAfter_ = Date.now() * 124;
-      const tokenInstance = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
-      await tokenInstance.deployed();
 
       // Approbation de la dépense
       const amountToApprove = ethers.utils.parseUnits("100", "ether");
-      await tokenInstance.approve(spender.address, amountToApprove);
+      await uni.approve(spender.address, amountToApprove);
   
       // Vérification de l'approbation
-      const allowanceAmount = await tokenInstance.allowance(owner.address, spender.address);
+      const allowanceAmount = await uni.allowance(owner.address, spender.address);
       expect(allowanceAmount).to.equal(allowanceAmount, amountToApprove, "Allowance amount is not correct");
     });
-  });
 
 //test fonction approve
 
-describe("approve", function() {
   it("allows the spender to transfer tokens up to the approved amount", async function() {
-    const [owner, spender] = await ethers.getSigners();
-
-    // Création d'une instance de contrat
-    const token = await ethers.getContractFactory("Uni");
-    const mintingAllowedAfter_ = Date.now() * 124;
-    const tokenInstance = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
-    await tokenInstance.deployed();    
 
     // Approbation de la dépense
     const amountToApprove = ethers.utils.parseUnits("100", "ether");
-    const approvalResult = await tokenInstance.approve(spender.address, amountToApprove);
+    const approvalResult = await uni.approve(spender.address, amountToApprove);
 
     // Vérification que l'approbation a réussi
-    expect(approvalResult).to.emit(tokenInstance, "Approval").withArgs(owner.address, spender.address, amountToApprove);
+    expect(approvalResult).to.emit(uni, "Approval").withArgs(owner.address, spender.address, amountToApprove);
 
     // Vérification de l'approbation
-    const allowanceAmount = await tokenInstance.allowance(owner.address, spender.address);
+    const allowanceAmount = await uni.allowance(owner.address, spender.address);
     expect(allowanceAmount).to.equal(amountToApprove, "Allowance amount is not correct");
   });
 
   // it("allows for an infinite amount to be approved", async function() {
-  //   const [owner, spender] = await ethers.getSigners();
-
-  //   // Création d'une instance de contrat
-  //   const token = await ethers.getContractFactory("Uni");
-  //   const mintingAllowedAfter_ = Date.now() * 124;
-  //   const tokenInstance = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
-  //   await tokenInstance.deployed();
 
   //   // Approbation de la dépense avec un montant infini
-  //   const approvalResult = await tokenInstance.approve(spender.address, ethers.constants.MaxUint256);
+  //   const approvalResult = await uni.approve(spender.address, ethers.constants.MaxUint256);
 
   //   // Vérification que l'approbation a réussi
-  //   expect(approvalResult).to.emit(tokenInstance, "Approval").withArgs(owner.address, spender.address, ethers.constants.MaxUint256);
+  //   expect(approvalResult).to.emit(uni, "Approval").withArgs(owner.address, spender.address, ethers.constants.MaxUint256);
 
   //   // Vérification de l'approbation
-  //   const allowanceAmount = await tokenInstance.allowance(owner.address, spender.address);
+  //   const allowanceAmount = await uni.allowance(owner.address, spender.address);
   //   expect(allowanceAmount).to.equal(ethers.constants.MaxUint256, "Allowance amount is not correct");
   // });
-});
 
+//tests fonction permit
 
+//   it("should permit spending", async function () {
+//     const owner = ethers.Wallet.createRandom().address;
+//     const spender = ethers.Wallet.createRandom().address;
+//     const rawAmount = ethers.BigNumber.from(100);
+//     const deadline = Math.floor(Date.now() / 1000) + 3600; // Expire in 1 hour
+//     const nonce = await uni.nonces(owner);
+//     const domainSeparator = await uni.DOMAIN_SEPARATOR();
+//     const PERMIT_TYPEHASH = await uni.PERMIT_TYPEHASH();
+//     const digest = ethers.utils.keccak256(
+//       ethers.utils.solidityPack(
+//         ["bytes1", "bytes1", "bytes32", "bytes32"],
+//         [
+//           "0x19",
+//           "0x01",
+//           domainSeparator,
+//           ethers.utils.keccak256(
+//             ethers.utils.solidityPack(
+//               ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
+//               [PERMIT_TYPEHASH, owner, spender, rawAmount, nonce, deadline]
+//             )
+//           ),
+//         ]
+//       )
+//     );
+//     const signature = await ethers.provider.getSigner(owner).signMessage(ethers.utils.arrayify(digest));
+//     const { v, r, s } = ethers.utils.splitSignature(signature);
 
+//     await uni.permit(owner, spender, rawAmount, deadline, v, r, s);
 
+//     expect(await uni.allowance(owner, spender)).to.equal(rawAmount);
+//   });
+// });
 });
