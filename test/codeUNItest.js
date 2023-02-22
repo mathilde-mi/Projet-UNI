@@ -230,8 +230,52 @@ describe("Uni contract", function () {
     });
   });
 
+//test fonction approve
+
+describe("approve", function() {
+  it("allows the spender to transfer tokens up to the approved amount", async function() {
+    const [owner, spender] = await ethers.getSigners();
+
+    // Création d'une instance de contrat
+    const token = await ethers.getContractFactory("Uni");
+    const mintingAllowedAfter_ = Date.now() * 124;
+    const tokenInstance = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
+    await tokenInstance.deployed();    
+
+    // Approbation de la dépense
+    const amountToApprove = ethers.utils.parseUnits("100", "ether");
+    const approvalResult = await tokenInstance.approve(spender.address, amountToApprove);
+
+    // Vérification que l'approbation a réussi
+    expect(approvalResult).to.emit(tokenInstance, "Approval").withArgs(owner.address, spender.address, amountToApprove);
+
+    // Vérification de l'approbation
+    const allowanceAmount = await tokenInstance.allowance(owner.address, spender.address);
+    expect(allowanceAmount).to.equal(amountToApprove, "Allowance amount is not correct");
+  });
+
+  // it("allows for an infinite amount to be approved", async function() {
+  //   const [owner, spender] = await ethers.getSigners();
+
+  //   // Création d'une instance de contrat
+  //   const token = await ethers.getContractFactory("Uni");
+  //   const mintingAllowedAfter_ = Date.now() * 124;
+  //   const tokenInstance = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
+  //   await tokenInstance.deployed();
+
+  //   // Approbation de la dépense avec un montant infini
+  //   const approvalResult = await tokenInstance.approve(spender.address, ethers.constants.MaxUint256);
+
+  //   // Vérification que l'approbation a réussi
+  //   expect(approvalResult).to.emit(tokenInstance, "Approval").withArgs(owner.address, spender.address, ethers.constants.MaxUint256);
+
+  //   // Vérification de l'approbation
+  //   const allowanceAmount = await tokenInstance.allowance(owner.address, spender.address);
+  //   expect(allowanceAmount).to.equal(ethers.constants.MaxUint256, "Allowance amount is not correct");
+  // });
+});
 
 
 
-  
+
 });
