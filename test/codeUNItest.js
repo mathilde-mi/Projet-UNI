@@ -58,12 +58,14 @@ describe("Uni", function () {
 });
 
 describe("Uni", function () {
-  let owner, minter, newMinter, recipient, spender;
+  let owner, minter, newMinter, recipient, spender, alice, sender, src, dst, delegatee, signatory, account1, account2;
   let Uni;
   let uni;
+  let nonce;
+  let expiry;
 
   beforeEach(async function () {
-    [owner, minter, newMinter, recipient, spender] = await ethers.getSigners();
+    [owner, minter, newMinter, recipient, spender, alice, sender, src, dst, delegatee, account1, account2] = await ethers.getSigners();
     const currentTime = (await ethers.provider.getBlock("latest")).timestamp;
     const Uni = await ethers.getContractFactory("Uni");
     const mintingAllowedAfter_ = Date.now() * 24;
@@ -248,4 +250,142 @@ describe("Uni", function () {
 //     expect(await uni.allowance(owner, spender)).to.equal(rawAmount);
 //   });
 // });
+
+
+//test fonction balanceOf
+
+  // it("should return the balance of an account", async function () {
+  //   // Mint 100 tokens to Alice
+  //   await uni.mint(alice.address, 100);
+  //   const balance = await uni.balanceOf(alice.address);
+  //   expect(balance).to.equal(100);
+  // });
+
+  // it("should return 0 balance for an account with no tokens", async function () {
+  //   // Mint 100 tokens to Alice
+  //   await uni.mint(alice.address, 100);
+  //   const balance = await uni.balanceOf(owner.address);
+  //   expect(balance).to.equal(0);
+  // });
+
+//test fonction transfer
+
+  // it("Should transfer tokens from sender to recipient", async function () {
+  //   const initialBalance = await uni.balanceOf(sender.address);
+  //   const amount = ethers.utils.parseEther("100");
+  //   await uni.transfer(recipient.address, amount);
+  //   const senderBalance = await uni.balanceOf(sender.address);
+  //   const recipientBalance = await uni.balanceOf(recipient.address);
+  //   expect(senderBalance.toString()).to.equal(initialBalance.sub(amount).toString(), "Sender balance incorrect");
+  //   expect(recipientBalance.toString()).to.equal(amount.toString(), "Recipient balance incorrect");
+  // });
+
+//test fonction transferfrom
+
+  it("should transfer tokens from source to destination", async function () {
+    const initialBalance = ethers.BigNumber.from(100);
+    const amount = ethers.BigNumber.from(50);
+
+    // Mint tokens to the source account
+    await uni.connect(owner).mint(src.address, initialBalance);
+
+    // Approve the spender to transfer tokens from the source account
+    await uni.connect(src).approve(owner.address, amount);
+
+    // Transfer tokens from the source to the destination account
+    await uni.connect(owner).transferFrom(src.address, dst.address, amount);
+
+    // Check the balances
+    const srcBalance = await uni.balanceOf(src.address);
+    const dstBalance = await uni.balanceOf(dst.address);
+    //assert.equal(srcBalance.toString(), initialBalance.sub(amount).toString(), "Source balance incorrect");
+    expect(srcBalance.toString()).to.equal(initialBalance.sub(amount).toString(),"Source balance incorrect" );
+    //assert.equal(dstBalance.toString(), amount.toString(), "Destination balance incorrect");
+    expect(dstBalance.toString(), amount.toString()).to.equal(amount.toString(), "Destination balance incorrect");
+  });
+
+  it("should revert if the spender tries to transfer more tokens than allowed", async function () {
+    const initialBalance = ethers.BigNumber.from(100);
+    const amount = ethers.BigNumber.from(150);
+
+    // Mint tokens to the source account
+    await uni.connect(owner).mint(src.address, initialBalance);
+
+    // Approve the spender to transfer tokens from the source account
+    await uni.connect(src).approve(owner.address, initialBalance);
+
+    // Attempt to transfer tokens from the source to the destination account
+    await expect(uni.connect(owner).transferFrom(src.address, dst.address, amount))
+  .to.be.revertedWith("Uni::transferFrom: transfer amount exceeds spender allowance");
+
+  });
+
+  //test fonction delegate
+
+  it("should delegate votes from the owner to the delegatee", async function() {
+    await uni.delegate(delegatee.address);
+    expect(await uni.delegates(owner.address)).to.equal(delegatee.address);
+  });
+
+//test fonction delegateBySig
+
+  it("should delegate votes from signatory to delegatee", async function () {
+    nonce = 0;
+    expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+    const domainSeparator = await uni.DOMAIN_SEPARATOR();
+    const delegationTypehash = await uni.DELEGATION_TYPEHASH();
+    const structHash = await ethers.utils.solidityKeccak256(
+      ["bytes32", "address", "uint256", "uint256"],
+      [
+        delegationTypehash,
+        delegatee.address,
+        nonce,
+        expiry,
+      ]
+    );
+    const digest = await ethers.utils.solidityKeccak256(
+      ["bytes1", "bytes1", "bytes32", "bytes32"],
+      [
+        "0x19",
+        "0x01",
+        domainSeparator,
+        structHash,
+      ]
+    );
+
+    const { v, r, s } = await ethers.utils.signDigest(digest, signatory.privateKey);
+    await uni.delegateBySig(delegatee.address, nonce, expiry, v, r, s);
+
+    expect(await uni.delegates(signatory.address)).to.equal(delegatee.address);
+  });
+
+  it("should revert if the signature is invalid", async function () {
+    nonce = 0;
+    expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+    const invalidSignatory = ethers.Wallet.createRandom().address;
+    const domainSeparator = await uni.DOMAIN_SEPARATOR();
+  });
+
+//test getCurrentVotes
+
+  it("should return the current votes balance for the account", async function () {
+    // Account 1 transfers some tokens to Account 2
+    const transferAmount = ethers.utils.parseUnits("1000", 18);
+    await uni.transfer(account1.address, transferAmount);
+    await uni.connect(account1).transfer(account2.address, transferAmount);
+
+    // Account 2 delegates votes to Account 1
+    await uni.connect(account2).delegate(account1.address);
+
+    // Get the current votes balance for Account 1 and Account 2
+    const votesAccount1 = await uni.getCurrentVotes(account1.address);
+    const votesAccount2 = await uni.getCurrentVotes(account2.address);
+
+    // Assert that the current votes balance is correct
+    expect(votesAccount1).to.equal(transferAmount);
+    expect(votesAccount2).to.equal(0);
+  });
+
+
+
 });
