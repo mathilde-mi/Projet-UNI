@@ -1,76 +1,20 @@
 const { expect } = require("chai");
 const { ethers } = require('hardhat');
-const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
+
 
 describe("Uni", function () {
-  async function deployUniFixture() {
-     const [owner, addr1, addr2] = await ethers.getSigners();
-     const mintingAllowedAfter_ = Date.now() * 24;
-     const Uni = await ethers.getContractFactory("Uni");
-     const hardhatUni = await Uni.deploy(owner.address, addr1.address, mintingAllowedAfter_);
-
-     return { Uni, hardhatUni, mintingAllowedAfter_, owner, addr1, addr2 };
-     };
-
-  it("Deployment should assign the total supply of tokens to the owner", async function () {
-    const { hardhatUni, owner } = await loadFixture(deployUniFixture);
-
-    const ownerBalance = await hardhatUni.balanceOf(owner.address);
-    expect(await hardhatUni.totalSupply()).to.equal(ownerBalance);
-  });
-
-  it("Should transfer tokens between accounts", async function () {
-    const { hardhatUni, owner, addr1, addr2 } = await loadFixture(deployUniFixture);
-
-    // Transfer 50 tokens from owner to addr1
-    await expect(hardhatUni.transfer(addr1.address, 50)).to.changeTokenBalances(hardhatUni, [owner, addr1], [-50, 50]);
-
-    // Transfer 50 tokens from addr1 to addr2
-    await expect(hardhatUni.connect(addr1).transfer(addr2.address, 50)).to.changeTokenBalances(hardhatUni, [addr1, addr2], [-50, 50]);
-  });
-
-  //  it("Should set the right owner", async function () {
-  //    const { hardhatUni, owner } = await loadFixture(deployUniFixture);
-
-  //    expect(await hardhatUni.owner()).to.equal(owner.address);
-  //  });
-
-  it("Should emit Transfer events", async function () {
-    const { hardhatUni, owner, addr1, addr2 } = await loadFixture(deployUniFixture);
-
-    // Transfer 50 tokens from owner to addr1
-    await expect(hardhatUni.transfer(addr1.address, 50)).to.emit(hardhatUni, "Transfer").withArgs(owner.address, addr1.address, 50);
-
-    // Transfer 50 tokens from addr1 to addr2
-    await expect(hardhatUni.connect(addr1).transfer(addr2.address, 50)).to.emit(hardhatUni, "Transfer").withArgs(addr1.address, addr2.address, 50);
-  });
-
-  // it("Should fail if sender doesn't have enough tokens", async function () {
-  //   const { hardhatUni, owner, addr1 } = await loadFixture(deployUniFixture);
-  //   const initialOwnerBalance = await hardhatUni.balanceOf(owner.address);
-
-  //   // Try to send 1 token from addr1 (0 tokens) to owner.
-  //   await expect(hardhatUni.connect(addr1).transfer(owner.address, 1)).to.be.revertedWith("Not enough tokens");
-
-  //   // Owner balance shouldn't have changed.
-  //   expect(await hardhatUni.balanceOf(owner.address)).to.equal(initialOwnerBalance);
-  // });
-});
-
-describe("Uni", function () {
-  let owner, minter, newMinter, recipient, spender, alice, sender, src, dst, delegatee, signatory, account1, account2;
+  let owner, minter, newMinter, recipient, spender, alice, bob, sender, src, dst, delegatee, signatory, account1, account2, user;
   let Uni;
   let uni;
   let nonce;
   let expiry;
 
   beforeEach(async function () {
-    [owner, minter, newMinter, recipient, spender, alice, sender, src, dst, delegatee, account1, account2] = await ethers.getSigners();
+    [owner, minter, newMinter, recipient, spender, alice, bob, sender, src, dst, delegatee, account1, account2, user] = await ethers.getSigners();
     const currentTime = (await ethers.provider.getBlock("latest")).timestamp;
     const Uni = await ethers.getContractFactory("Uni");
     const mintingAllowedAfter_ = Date.now() * 24;
     uni = await Uni.deploy(owner.address, minter.address, mintingAllowedAfter_);
-    // uniToken = await UniToken.connect(owner).deploy(owner.address, minter.address, currentTime + 10000);
     await uni.deployed();
   });
 
@@ -386,6 +330,116 @@ describe("Uni", function () {
     expect(votesAccount2).to.equal(0);
   });
 
+//test fonction getPriorVotes
+
+  it("should return the correct number of votes as of a previous block", async function() {
+    // Transfer some tokens to account1 and delegate to owner
+    const amount = ethers.utils.parseEther("100");
+    await uni.connect(owner).transfer(account1.address, amount);
+    await uni.connect(account1).delegate(owner.address);
+    
+    // Wait 5 blocks
+    for(let i = 0; i < 5; i++) {
+      await ethers.provider.send("evm_mine", []);
+    }
+    
+    // Get the current block number and prior block number
+    const currentBlockNumber = await ethers.provider.getBlockNumber();
+    const priorBlockNumber = currentBlockNumber - 1;
+    
+    // Get the prior number of votes for account1 as of the prior block number
+    const priorVotes = await uni.getPriorVotes(account1.address, priorBlockNumber);
+    
+    // Ensure the prior votes are correct
+    expect(priorVotes).to.equal(amount, "Prior votes are incorrect");
+
+  });
+
+  //test fonction _delegate  
+  
+  it("should delegate votes and emit an event", async function () {
+    const initialBalance = ethers.utils.parseEther("100");
+    // Delegate votes from owner to delegatee
+    await uni.connect(owner)._delegate(owner.address, delegatee.address);
+
+    // Check that the delegatee is set correctly
+    expect(await uni.delegates(owner.address)).to.equal(delegatee.address);
+
+    // Check that the DelegateChanged event is emitted
+    const event = await uni.queryFilter("DelegateChanged");
+    expect(event.length).to.equal(1);
+    expect(event[0].args.delegator).to.equal(owner.address);
+    expect(event[0].args.currentDelegate).to.equal(owner.address);
+    expect(event[0].args.delegatee).to.equal(delegatee.address);
+  });
+
+  it("should move delegate's votes", async function () {
+    const initialBalance = ethers.utils.parseEther("100");
+
+    // Transfer some tokens to user
+    const amount = ethers.utils.parseEther("10");
+    await uni.transfer(user.address, amount);
+
+    // Delegate votes from owner to delegatee
+    await uni.connect(owner)._delegate(owner.address, delegatee.address);
+
+    // Check that the delegatee has the same number of votes as the owner
+    const delegateeVotes = await uni.getCurrentVotes(delegatee.address);
+    const ownerVotes = await uni.getCurrentVotes(owner.address);
+    expect(delegateeVotes).to.equal(ownerVotes);
+
+    // Move some of user's votes to delegatee
+    await uni.connect(user)._delegate(delegatee.address, { gasLimit: 100000 });
+
+    // Check that the delegatee's votes have increased
+    const delegateeVotes2 = await uni.getCurrentVotes(delegatee.address);
+    expect(delegateeVotes2).to.be.gt(delegateeVotes);
+
+    // Check that the owner's votes have decreased
+    const ownerVotes2 = await uni.getCurrentVotes(owner.address);
+    expect(ownerVotes2).to.be.lt(ownerVotes);
+  }); 
+
+  //test fonction _transferTokens (internal?)
+  
+  it.only("should transfer tokens from one address to another", async function () {
+    const amount = 10; // 10 ETH
+    const weiAmount = ethers.utils.parseEther(amount.toString());
+
+    await uni.mint(owner.address, weiAmount);
+
+    const initialSrcBalance = await uni.balanceOf(owner.address);
+    const initialDstBalance = await uni.balanceOf(alice.address);
+
+    await uni.transfer(alice.address, weiAmount);
+
+    const finalSrcBalance = await uni.balanceOf(owner.address);
+    const finalDstBalance = await uni.balanceOf(alice.address);
+
+    // assert.equal(finalSrcBalance, sub96(initialSrcBalance, toWei("10")), "Invalid source balance after transfer");
+    //assert.equal(finalDstBalance, add96(initialDstBalance, toWei("10")), "Invalid destination balance after transfer");
+    expect(finalSrcBalance).to.equal(sub96(initialSrcBalance, weiAmount), "Invalid source balance after transfer");
+    expect(finalDestBalance).to.equal(add96(initialDestBalance, weiAmount), "Invalid destination balance after transfer");
+ 
+  });
+
+  it("should not transfer tokens from/to the zero address", async function () {
+    await uni.mint(owner.address, toWei("100"));
+
+    await expect(uni.transfer(constants.ZERO_ADDRESS, toWei("10"))).to.be.revertedWith(
+      "Uni::_transferTokens: cannot transfer from/to the zero address"
+    );
+  });
+
+  it("should not transfer tokens if the sender does not have enough balance", async function () {
+    await uni.mint(owner.address, toWei("100"));
+
+    await expect(uni.connect(alice).transfer(bob.address, toWei("101"))).to.be.revertedWith(
+      "Uni::_transferTokens: transfer amount exceeds balance"
+    );
+  });
+  
+//test fonction _moveDelegates, _writeCheckpoint, safe32, safe96, add96, sub96, getChainId --> internal? 
 
 
 });
